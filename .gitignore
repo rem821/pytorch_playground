@@ -334,3 +334,6 @@ venv/
 
 # Log files
 *.log
+
+__pycache__/*
+data/*
