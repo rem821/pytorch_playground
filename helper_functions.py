@@ -345,3 +345,21 @@ def test_step(model: torch.nn.Module,
         test_loss /= len(data_loader)
         test_acc /= len(data_loader)
         print(f"\nTest loss: {test_loss:.5f} | Test acc: {test_acc:.2f}")
+
+
+def make_predictions(model: torch.nn.Module,
+                     data: List,
+                     device="cpu"):
+    pred_probs = []
+    model.to(device)
+    model.eval()
+    with torch.inference_mode():
+        for sample in data:
+            sample = torch.unsqueeze(sample, dim=0).to(device)
+            y_pred = model(sample)
+
+            pred_prob = torch.softmax(y_pred.squeeze(), dim=0)
+
+            pred_probs.append(pred_prob.cpu())
+
+    return torch.stack(pred_probs)
