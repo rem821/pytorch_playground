@@ -1,25 +1,16 @@
 import torch
 from torch import nn
-import sklearn
 from sklearn.datasets import make_blobs
 from sklearn.model_selection import train_test_split
 import pandas as pd
 import matplotlib.pyplot as plt
-import numpy as np
 import requests
 from pathlib import Path
-from helper_functions import plot_decision_boundary
-
-
-def accuracy_fn(y_true, y_pred):
-    correct = torch.eq(y_true, y_pred).sum().item()
-    acc = (correct / len(y_pred)) * 100
-    return acc
+from helper_functions import plot_decision_boundary, accuracy_fn
 
 
 if __name__ == '__main__':
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    device = "cpu"
     print(f"Using device: {device}")
 
     if Path("./helper_functions.py").is_file():
@@ -33,7 +24,7 @@ if __name__ == '__main__':
 
     n_samples = 1000
 
-    X, y = make_blobs(n_samples, n_features=2, centers=4, cluster_std=1.5, random_state=42)
+    X, y = make_blobs(n_samples, n_features=2, centers=4, cluster_std=1.5)
 
     circles = pd.DataFrame({"X1": X[:, 0], "X2": X[:, 1], "label": y})
     plt.scatter(x=X[:, 0], y=X[:, 1], c=y, cmap=plt.cm.RdYlBu)
@@ -42,7 +33,7 @@ if __name__ == '__main__':
     X = torch.from_numpy(X).type(torch.float)
     y = torch.from_numpy(y).type(torch.LongTensor)
 
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2)
     X_train = X_train.to(device)
     y_train = y_train.to(device)
     X_test = X_test.to(device)

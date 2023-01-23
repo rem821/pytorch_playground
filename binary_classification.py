@@ -1,24 +1,16 @@
 import torch
 from torch import nn
-import sklearn
 from sklearn.datasets import make_circles
 from sklearn.model_selection import train_test_split
 import pandas as pd
 import matplotlib.pyplot as plt
-import numpy as np
 import requests
 from pathlib import Path
-from helper_functions import plot_decision_boundary
-
-def accuracy_fn(y_true, y_pred):
-    correct = torch.eq(y_true, y_pred).sum().item()
-    acc = (correct / len(y_pred)) * 100
-    return acc
+from helper_functions import plot_decision_boundary, accuracy_fn
 
 
 if __name__ == '__main__':
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    device = "cpu"
     print(f"Using device: {device}")
 
     if Path("./helper_functions.py").is_file():

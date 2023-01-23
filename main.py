@@ -2,18 +2,7 @@ import torch
 from torch import nn
 import matplotlib.pyplot as plt
 from pathlib import Path
-
-
-def plot_predictions(train_data, train_labels, test_data, test_labels, predictions=None):
-    plt.figure(figsize=(10, 7))
-    plt.scatter(train_data, train_labels, c="b", s=4, label="Training data")
-    plt.scatter(test_data, test_labels, c="g", s=4, label="Testing data")
-
-    if predictions is not None:
-        plt.scatter(test_data, predictions, c="r", s=4, label="Predictions")
-
-    plt.legend(prop={"size": 4})
-    plt.show()
+from helper_functions import plot_predictions
 
 
 class LinearRegressionModel(nn.Module):
