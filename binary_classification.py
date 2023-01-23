@@ -4,23 +4,12 @@ from sklearn.datasets import make_circles
 from sklearn.model_selection import train_test_split
 import pandas as pd
 import matplotlib.pyplot as plt
-import requests
-from pathlib import Path
 from helper_functions import plot_decision_boundary, accuracy_fn
 
 
 if __name__ == '__main__':
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"Using device: {device}")
-
-    if Path("./helper_functions.py").is_file():
-        print("helper_function.py already exists")
-    else:
-        print("downloading helper_functions.py")
-        request = requests.get(
-            "https://raw.githubusercontent.com/mrdbourke/pytorch-deep-learning/main/helper_functions.py")
-        with open("./helper_functions.py", "wb") as f:
-            f.write(request.content)
 
     n_samples = 1000
 

@@ -1,13 +1,9 @@
-"""
-A series of helper functions used throughout the course.
-
-If a function gets defined once and could be used over and over, it'll go in here.
-"""
 import torch
 import matplotlib.pyplot as plt
 import numpy as np
 
 from torch import nn
+from torch.utils.data import DataLoader
 
 import os
 import zipfile
@@ -35,6 +31,7 @@ def walk_through_dir(dir_path):
     """
     for dirpath, dirnames, filenames in os.walk(dir_path):
         print(f"There are {len(dirnames)} directories and {len(filenames)} images in '{dirpath}'.")
+
 
 def plot_decision_boundary(model: torch.nn.Module, X: torch.Tensor, y: torch.Tensor):
     """Plots decision boundaries of model predicting on X in comparison to y.
@@ -74,7 +71,7 @@ def plot_decision_boundary(model: torch.nn.Module, X: torch.Tensor, y: torch.Ten
 
 # Plot linear data or training and test and predictions (optional)
 def plot_predictions(
-    train_data, train_labels, test_data, test_labels, predictions=None
+        train_data, train_labels, test_data, test_labels, predictions=None
 ):
     """
   Plots linear training data and test data and compares predictions.
@@ -106,7 +103,7 @@ def accuracy_fn(y_true, y_pred):
     Returns:
         [torch.float]: Accuracy value between y_true and y_pred, e.g. 78.45
     """
-    correct = torch.eq(y_true, y_pred).sum().item()
+    correct = torch.eq(y_true.cpu(), y_pred.cpu()).sum().item()
     acc = (correct / len(y_pred)) * 100
     return acc
 
@@ -172,11 +169,11 @@ import torchvision
 
 
 def pred_and_plot_image(
-    model: torch.nn.Module,
-    image_path: str,
-    class_names: List[str] = None,
-    transform=None,
-    device: torch.device = "cuda" if torch.cuda.is_available() else "cpu",
+        model: torch.nn.Module,
+        image_path: str,
+        class_names: List[str] = None,
+        transform=None,
+        device: torch.device = "cuda" if torch.cuda.is_available() else "cpu",
 ):
     """Makes a prediction on a target image with a trained model and plots the image.
 
@@ -237,7 +234,8 @@ def pred_and_plot_image(
     plt.title(title)
     plt.axis(False)
 
-def set_seeds(seed: int=42):
+
+def set_seeds(seed: int = 42):
     """Sets random sets for torch operations.
 
     Args:
@@ -248,7 +246,8 @@ def set_seeds(seed: int=42):
     # Set the seed for CUDA torch operations (ones that happen on the GPU)
     torch.cuda.manual_seed(seed)
 
-def download_data(source: str, 
+
+def download_data(source: str,
                   destination: str,
                   remove_source: bool = True) -> Path:
     """Downloads a zipped dataset from source and unzips to destination.
@@ -275,7 +274,7 @@ def download_data(source: str,
     else:
         print(f"[INFO] Did not find {image_path} directory, creating one...")
         image_path.mkdir(parents=True, exist_ok=True)
-        
+
         # Download pizza, steak, sushi data
         target_file = Path(source).name
         with open(data_path / target_file, "wb") as f:
@@ -285,11 +284,64 @@ def download_data(source: str,
 
         # Unzip pizza, steak, sushi data
         with zipfile.ZipFile(data_path / target_file, "r") as zip_ref:
-            print(f"[INFO] Unzipping {target_file} data...") 
+            print(f"[INFO] Unzipping {target_file} data...")
             zip_ref.extractall(image_path)
 
         # Remove .zip file
         if remove_source:
             os.remove(data_path / target_file)
-    
+
     return image_path
+
+
+def train_step(model: torch.nn.Module,
+               data_loader: torch.utils.data.DataLoader,
+               loss_fn: torch.nn.Module,
+               optimizer: torch.optim.Optimizer,
+               accuracy_fn,
+               device="cpu"):
+    train_loss, train_acc = 0, 0
+
+    model.to(device)
+    model.train()
+    for batch, (X, y) in enumerate(data_loader):
+        X, y = X.to(device), y.to(device)
+
+        y_pred = model(X)
+
+        loss = loss_fn(y_pred, y)
+        train_loss += loss
+        train_acc += accuracy_fn(y, y_pred.argmax(dim=1))
+
+        optimizer.zero_grad()
+
+        loss.backward()
+
+        optimizer.step()
+
+    train_loss /= len(data_loader)
+    train_acc /= len(data_loader)
+    print(f"\nTrain loss: {train_loss:.5f} | Train acc: {train_acc:.2f}")
+
+
+def test_step(model: torch.nn.Module,
+              data_loader: torch.utils.data.DataLoader,
+              loss_fn: torch.nn.Module,
+              accuracy_fn,
+              device="cpu"):
+
+    test_loss, test_acc = 0, 0
+
+    model.to(device)
+    model.eval()
+    with torch.inference_mode():
+        for X_test, y_test in data_loader:
+            X_test, y_test = X_test.to(device), y_test.to(device)
+
+            test_pred = model(X_test)
+            test_loss += loss_fn(test_pred, y_test)
+            test_acc += accuracy_fn(y_test, test_pred.argmax(dim=1))
+
+        test_loss /= len(data_loader)
+        test_acc /= len(data_loader)
+        print(f"\nTest loss: {test_loss:.5f} | Test acc: {test_acc:.2f}")

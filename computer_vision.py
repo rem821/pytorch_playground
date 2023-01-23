@@ -7,7 +7,8 @@ from torchvision.transforms import ToTensor
 import matplotlib.pyplot as plt
 from timeit import default_timer as timer
 from tqdm.auto import tqdm
-from helper_functions import accuracy_fn, print_train_time
+from helper_functions import accuracy_fn, print_train_time, train_step, test_step
+from pathlib import Path
 
 
 def eval_model(model: torch.nn.Module, data_loader: torch.utils.data.DataLoader, loss_fn: torch.nn.Module, accuracy_fn):
@@ -25,6 +26,7 @@ def eval_model(model: torch.nn.Module, data_loader: torch.utils.data.DataLoader,
     return {"model_name": model.__class__.__name__,
             "model_loss": loss,
             "model_acc": acc}
+
 
 class FashionMNISTModelV0(nn.Module):
     def __init__(self, input_shape: int, hidden_units: int, output_shape: int):
@@ -47,10 +49,12 @@ if __name__ == '__main__':
     BATCH_SIZE = 32
     train_data = datasets.FashionMNIST(root="data", train=True, download=True, transform=ToTensor(),
                                        target_transform=None)
+
     train_dataloader = DataLoader(dataset=train_data, batch_size=BATCH_SIZE, shuffle=True)
 
     test_data = datasets.FashionMNIST(root="data", train=False, download=True, transform=ToTensor(),
                                       target_transform=None)
+
     test_dataloader = DataLoader(dataset=test_data, batch_size=BATCH_SIZE, shuffle=False)
 
     print(f"Data loaders: {train_dataloader, test_dataloader}")
@@ -87,40 +91,19 @@ if __name__ == '__main__':
 
     start_time = timer()
     for epoch in tqdm(range(epochs)):
-        print(f"Epoch: {epoch}\n------")
-        training_loss = 0
-
-        for batch, (X, y) in enumerate(train_dataloader):
-            model.train()
-            y_pred = model(X)
-
-            loss = loss_fn(y_pred, y)
-            training_loss += loss
-
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
-
-            # if batch % 100 == 0:
-            # print(f"Looked at {batch * len(X)}/{len(train_dataloader.dataset)} samples")
-
-        training_loss /= len(train_dataloader)
-
-        testing_loss, testing_acc = 0, 0
-        model.eval()
-        with torch.inference_mode():
-            for X_test, y_test in test_dataloader:
-                test_pred = model(X_test)
-                testing_loss += loss_fn(test_pred, y_test)
-                testing_acc += accuracy_fn(y_test, test_pred.argmax(dim=1))
-
-            testing_loss /= len(test_dataloader)
-            testing_acc /= len(test_dataloader)
-
-        print(f"\nTrain loss: {training_loss:.4f} | Test loss: {testing_loss:.4f} | Test acc: {testing_acc:.4f}")
+        train_step(model, train_dataloader, loss_fn, optimizer, accuracy_fn, device)
+        test_step(model, test_dataloader, loss_fn, accuracy_fn, device)
 
     end_time = timer()
     print_train_time(start_time, end_time, device)
 
-    model_results = eval_model(model, test_dataloader, loss_fn, accuracy_fn)
+    model_results = eval_model(model.cpu(), test_dataloader, loss_fn, accuracy_fn)
     print(model_results)
+
+    MODEL_PATH = Path("models")
+    MODEL_PATH.mkdir(parents=True, exist_ok=True)
+
+    MODEL_NAME = "pytorch_computer_vision _model.pth"
+    MODEL_SAVE_PATH = MODEL_PATH / MODEL_NAME
+
+    torch.save(obj=model.state_dict(), f=MODEL_SAVE_PATH)
