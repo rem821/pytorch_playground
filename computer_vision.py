@@ -6,47 +6,11 @@ from torchvision import transforms, datasets
 from torchvision.transforms import ToTensor
 import matplotlib.pyplot as plt
 from timeit import default_timer as timer
-from tqdm.auto import tqdm
-from helper_functions import accuracy_fn, print_train_time, train_step, test_step, make_predictions
+from helper_functions import *
 from pathlib import Path
 import random
 from mlxtend.plotting import plot_confusion_matrix
 from torchmetrics import ConfusionMatrix
-
-
-def eval_model(model: torch.nn.Module, data_loader: torch.utils.data.DataLoader, loss_fn: torch.nn.Module, accuracy_fn):
-    loss, acc = 0, 0
-    model.eval()
-    with torch.inference_mode():
-        for X, y in data_loader:
-            y_pred = model(X)
-            loss += loss_fn(y_pred, y)
-            acc += accuracy_fn(y, y_pred.argmax(dim=1))
-
-        loss /= len(data_loader)
-        acc /= len(data_loader)
-
-    return {"model_name": model.__class__.__name__,
-            "model_loss": loss,
-            "model_acc": acc}
-
-
-def visualize_samples(rows: int, cols: int, images, truth_labels, pred_labels=None, evaluation_mode=False):
-    fig = plt.figure(figsize=(9, 9))
-    for i in range(0, rows * cols):
-        fig.add_subplot(rows, cols, i + 1)
-        plt.imshow(images[i].squeeze(), cmap="gray")
-        plt.title(class_names[labels[i]])
-
-        if evaluation_mode:
-            if pred_labels[i] == truth_labels[i]:
-                plt.title(class_names[truth_labels[i]], fontsize=10, c="g")
-            else:
-                plt.title(f"{class_names[truth_labels[i]]}|{class_names[pred_labels[i]]}", fontsize=10, c="r")
-        else:
-            plt.title(class_names[truth_labels[i]], fontsize=10)
-        plt.axis(False)
-    plt.show()
 
 
 class FashionMNISTModel(nn.Module):
@@ -150,7 +114,7 @@ if __name__ == '__main__':
         images.append(sample)
         labels.append(label)
 
-    visualize_samples(rows, cols, images, labels)
+    visualize_samples(rows, cols, images, class_names, labels)
 
     model = FashionMNISTModelCnn(input_shape=1, hidden_units=50, output_shape=len(class_names))
     model = model.to(device)
@@ -162,8 +126,8 @@ if __name__ == '__main__':
 
     start_time = timer()
     for epoch in tqdm(range(epochs)):
-        train_step(model, train_dataloader, loss_fn, optimizer, accuracy_fn, device)
-        test_step(model, test_dataloader, loss_fn, accuracy_fn, device)
+        train_step(model, train_dataloader, loss_fn, optimizer, device)
+        test_step(model, test_dataloader, loss_fn, device)
 
     end_time = timer()
     print_train_time(start_time, end_time, device)
@@ -188,7 +152,7 @@ if __name__ == '__main__':
 
     #pred_probs = make_predictions(model, test_samples, device)
     #pred_labels = pred_probs.argmax(dim=1)
-    #visualize_samples(rows, cols, test_samples, test_labels, pred_labels, True)
+    #visualize_samples(rows, cols, test_samples, class_names, test_labels, pred_labels, True)
 
     test_samples = []
     test_labels = []

@@ -4,6 +4,8 @@ import numpy as np
 
 from torch import nn
 from torch.utils.data import DataLoader
+from tqdm.auto import tqdm
+from timeit import default_timer as timer
 
 import os
 import zipfile
@@ -298,7 +300,6 @@ def train_step(model: torch.nn.Module,
                data_loader: torch.utils.data.DataLoader,
                loss_fn: torch.nn.Module,
                optimizer: torch.optim.Optimizer,
-               accuracy_fn,
                device="cpu"):
     train_loss, train_acc = 0, 0
 
@@ -310,8 +311,7 @@ def train_step(model: torch.nn.Module,
         y_pred = model(X)
 
         loss = loss_fn(y_pred, y)
-        train_loss += loss
-        train_acc += accuracy_fn(y, y_pred.argmax(dim=1))
+        train_loss += loss.item()
 
         optimizer.zero_grad()
 
@@ -319,17 +319,18 @@ def train_step(model: torch.nn.Module,
 
         optimizer.step()
 
+        y_pred_class = torch.argmax(torch.softmax(y_pred, dim=1), dim=1)
+        train_acc += (y_pred_class == y).sum().item() / len(y_pred)
+
     train_loss /= len(data_loader)
     train_acc /= len(data_loader)
-    print(f"\nTrain loss: {train_loss:.5f} | Train acc: {train_acc:.2f}")
+    return train_loss, train_acc
 
 
 def test_step(model: torch.nn.Module,
               data_loader: torch.utils.data.DataLoader,
               loss_fn: torch.nn.Module,
-              accuracy_fn,
               device="cpu"):
-
     test_loss, test_acc = 0, 0
 
     model.to(device)
@@ -339,12 +340,44 @@ def test_step(model: torch.nn.Module,
             X_test, y_test = X_test.to(device), y_test.to(device)
 
             test_pred = model(X_test)
-            test_loss += loss_fn(test_pred, y_test)
-            test_acc += accuracy_fn(y_test, test_pred.argmax(dim=1))
+            test_loss += loss_fn(test_pred, y_test).item()
+
+            test_pred_class = torch.argmax(torch.softmax(test_pred, dim=1), dim=1)
+            test_acc += (test_pred_class == y_test).sum().item() / len(test_pred)
 
         test_loss /= len(data_loader)
         test_acc /= len(data_loader)
-        print(f"\nTest loss: {test_loss:.5f} | Test acc: {test_acc:.2f}")
+        return test_loss, test_acc
+
+
+def train(model: torch.nn.Module,
+          train_dataloader: torch.utils.data.DataLoader,
+          test_dataloader: torch.utils.data.DataLoader,
+          optimizer: torch.optim.Optimizer,
+          loss_fn: torch.nn.Module,
+          epochs: int = 5,
+          device="cpu"):
+    results = {
+        "train_loss": [],
+        "train_acc": [],
+        "test_loss": [],
+        "test_acc": [],
+    }
+
+    start_time = timer()
+    for epoch in tqdm(range(epochs)):
+        train_loss, train_acc = train_step(model, train_dataloader, loss_fn, optimizer, device)
+        test_loss, test_acc = test_step(model, test_dataloader, loss_fn, device)
+        print(
+            f"\nEpoch: {epoch} | Train loss: {train_loss:.4f} | Train acc {train_acc * 100:.2f} % | Test loss: {test_loss:.4f} | Test acc {test_acc * 100:.2f} %\n")
+
+        results["train_loss"].append(train_loss)
+        results["train_acc"].append(train_acc)
+        results["test_loss"].append(test_loss)
+        results["test_acc"].append(test_acc)
+    end_time = timer()
+    print_train_time(start_time, end_time, device)
+    return results
 
 
 def make_predictions(model: torch.nn.Module,
@@ -363,3 +396,84 @@ def make_predictions(model: torch.nn.Module,
             pred_probs.append(pred_prob.cpu())
 
     return torch.stack(pred_probs)
+
+
+def visualize_samples(rows: int, cols: int, images, class_names, truth_labels, pred_labels=None, evaluation_mode=False):
+    fig = plt.figure(figsize=(9, 9))
+    for i in range(0, rows * cols):
+        fig.add_subplot(rows, cols, i + 1)
+        plt.imshow(images[i].squeeze(), cmap="gray")
+        plt.title(class_names[truth_labels[i]])
+
+        if evaluation_mode:
+            if pred_labels[i] == truth_labels[i]:
+                plt.title(class_names[truth_labels[i]], fontsize=10, c="g")
+            else:
+                plt.title(f"{class_names[truth_labels[i]]}|{class_names[pred_labels[i]]}", fontsize=10, c="r")
+        else:
+            plt.title(class_names[truth_labels[i]], fontsize=10)
+        plt.axis(False)
+    plt.show()
+
+
+def visualize_samples_rgb(rows: int, cols: int, images, class_names, truth_labels, pred_labels=None,
+                          evaluation_mode=False):
+    fig = plt.figure(figsize=(9, 9))
+    for i in range(0, rows * cols):
+        fig.add_subplot(rows, cols, i + 1)
+        plt.imshow(images[i])
+        plt.title(class_names[truth_labels[i]])
+
+        if evaluation_mode:
+            if pred_labels[i] == truth_labels[i]:
+                plt.title(class_names[truth_labels[i]], fontsize=10, c="g")
+            else:
+                plt.title(f"{class_names[truth_labels[i]]}|{class_names[pred_labels[i]]}", fontsize=10, c="r")
+        else:
+            plt.title(class_names[truth_labels[i]], fontsize=10)
+        plt.axis(False)
+    plt.show()
+
+
+def eval_model(model: torch.nn.Module, data_loader: torch.utils.data.DataLoader, loss_fn: torch.nn.Module, accuracy_fn):
+    loss, acc = 0, 0
+    model.eval()
+    with torch.inference_mode():
+        for X, y in data_loader:
+            y_pred = model(X)
+            loss += loss_fn(y_pred, y)
+            acc += accuracy_fn(y, y_pred.argmax(dim=1))
+
+        loss /= len(data_loader)
+        acc /= len(data_loader)
+
+    return {"model_name": model.__class__.__name__,
+            "model_loss": loss,
+            "model_acc": acc}
+
+
+def plot_loss_curves(results: dict[str, List[float]]):
+    loss = results["train_loss"]
+    test_loss = results["test_loss"]
+
+    acc = results["train_acc"]
+    test_acc = results["test_acc"]
+
+    epochs = range(len(results["train_loss"]))
+
+    plt.figure(figsize=(15, 7))
+    plt.subplot(1, 2, 1)
+    plt.plot(epochs, loss, label="Training loss")
+    plt.plot(epochs, test_loss, label="Testing loss")
+    plt.title("Loss")
+    plt.xlabel("Epochs")
+    plt.legend()
+
+    plt.subplot(1, 2, 2)
+    plt.plot(epochs, acc, label="Training acc")
+    plt.plot(epochs, test_acc, label="Testing acc")
+    plt.title("Accuracy")
+    plt.xlabel("Epochs")
+    plt.legend()
+
+    plt.show()
